@@ -6,12 +6,18 @@
     <div class="jumbotron">
         <h2 align="center">You are now in gallery</h2>
         <br>
-        
+
         {% if not iris_ori %}
           <h2 align="center">You havn't uploaded Iris Image</h2>
         {% else %}
-          <img src="{{ iris_ori }}" width="40%">
-          <img src="{{ iris_flat }}" width="40%" align="right">
+       	  <div align="left">
+       	    <p>Original Image</p>
+            <img src="{{ iris_ori }}" width="40%">
+          </div>
+          <div align="right">
+          <p>Normalized Image</p>
+          <img src="{{ iris_flat }}" width="40%">
+          </div>
         {% endif %}
 
 

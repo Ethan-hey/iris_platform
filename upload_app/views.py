@@ -248,9 +248,9 @@ def pre_process(image, width=360, height=60):
     # Use Hough transform to detect circle
     ret, th3 = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
     circle_in = cv2.HoughCircles(image=gray,method=cv2.HOUGH_GRADIENT,dp=1,
-                            minDist=50,param1=ret,param2=30,minRadius=1,maxRadius=200)[0][0]
+                            minDist=50,param1=ret,param2=30,minRadius=10,maxRadius=100)[0][0]
     circle_out = circle_in.copy()
-    circle_out[2] = 120
+    circle_out[2] = 90
     
     # x, y, r for the inner circle and outer circle
     X_in_cen, Y_in_cen, r_in = circle_in[1], circle_in[0], circle_in[2]
