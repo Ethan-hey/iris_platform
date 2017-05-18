@@ -1,6 +1,8 @@
 from django.conf.urls import url
 from django.contrib import admin
 from upload_app import views
+from django.conf import settings
+from django.conf.urls.static import static
 
 app_name = 'upload_app'
 
@@ -12,5 +14,7 @@ urlpatterns = [
 	url(r'^logout/', views.user_logout, name='user_logout'),
 	url(r'^special/', views.special, name='special'),
 	url(r'^upload/', views.upload, name='upload'), 
+	url(r'^Iris Gallery/', views.iris_gallery, name='iris_gallery'), 
+	url(r'^upload_face/', views.upload_face, name='upload_face'), 
     # url(r'^admin/', admin.site.urls),
-]
+] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

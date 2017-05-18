@@ -1,9 +1,9 @@
 from __future__ import division
 
 from django.shortcuts import render
-from upload_app.forms import UserForm, DocumentForm
+from upload_app.forms import UserForm, DocumentForm, DocumentFaceForm
 
-from upload_app.models import Document
+from upload_app.models import Document, Document_face
 import cv2
 import numpy as np
 import uuid, os
@@ -22,8 +22,11 @@ def intro(request):
 	return render(request, 'upload_app/intro.html')
 
 
-@login_required
+# @login_required
 def special(request):
+    if not request.user.is_authenticated():
+        return render(request, 'upload_app/require_login.html')
+        # return render(request, 'upload_app/logged_in_page.html')
     # Remember to also set login url in settings.py!
     return HttpResponse("You are logged in. Nice!")
 
@@ -35,34 +38,132 @@ def user_logout(request):
     # Return to homepage.
     return render(request, 'upload_app/logout.html')
 
+def iris_gallery(request):
 
-@login_required
-def upload(request):
-    print request.user
+    if not request.user.is_authenticated():
+        return render(request, 'upload_app/require_login.html')
+
+    username = str(request.user)
+
+    try:
+        filename = Document.objects.get(username=str(request.user)).document.name
+        filename = str(filename).split('/')[-1]
+
+        path = '/media/iris/user_' + username + "/"
+        iris_ori = path + filename
+        iris_flat = path + 'flat_' + filename
+    except:
+        iris_ori = None
+        iris_flat = None
+
+    return render(request, 'upload_app/iris_gallery.html',
+                 {'iris_ori':iris_ori, 'iris_flat':iris_flat})
+
+def upload_face(request):
+    if not request.user.is_authenticated():
+        return render(request, 'upload_app/require_login.html')
+
+    # Get current user's username
+    username = request.user
+
+    # Redirect if already uploaded
+    query_set = DocumentFaceForm.objects.filter(username=username)
+    if len(query_set) > 0:
+        return render(request, 'upload_app/already_upload.html')
+
     if request.method == 'POST':
-        username = request.user
-        form = DocumentForm(request.POST, request.FILES, username)
+
+        # Check if inputed username matches logged username
+        input_username = request.POST['username']
+
+        # Redirect if already uploaded
+        query_set = Document.objects.filter(username=username)
+        if len(query_set) > 0:
+            return render(request, 'upload_app/already_upload.html')
+
+        # Redirect if not match
+        print 'check if username matches', str(username) != str(input_username)
+        if str(username) != str(input_username):
+            return render(request, 'upload_app/fail_upload.html')
+
+        form = DocumentFaceForm(request.POST, request.FILES, username)
+
+        print 'check if form is valid', form.is_valid()
+
         if form.is_valid():
             form.save()
             uploaded_file = request.FILES['document']
-            # path = request.FILES['document'].upload_to
-            # print 'check if image name match', filename
-            
-            print '-------------------------------------------------------------'
-            print 'uploaded path', os.path.abspath(uploaded_file.name)
-            print 'type:', type(os.path.abspath(uploaded_file.name))
+            filename = request.FILES['document'].name
+            suffix = str(filename).split('.')[-1]
+            if not suffix in ['jpg', 'jpeg', 'png']:
+                return HttpResponse("file format not supported")
+            print 'suffix for current file is:', suffix
 
-            image = cv2.imread(str(os.path.abspath(uploaded_file.name)))
+            return render(request, 'upload_app/success_upload.html')
+            # return HttpResponseRedirect(request, 'index')
+    else:
+        form = DocumentForm()
+    return render(request, 'upload_app/uploadPage.html', {'form':form})
 
-            # print 'type of image', type(image)
-            
-            return HttpResponseRedirect(request, 'index')
+
+# @login_required
+def upload(request):
+
+    if not request.user.is_authenticated():
+        return render(request, 'upload_app/require_login.html')
+
+    # Get current user's username
+    username = request.user
+
+    # Redirect if already uploaded
+    query_set = Document.objects.filter(username=username)
+    if len(query_set) > 0:
+        return render(request, 'upload_app/already_upload.html')
+
+    if request.method == 'POST':
+
+        # Check if inputed username matches logged username
+        input_username = request.POST['username']
+
+        # Redirect if already uploaded
+        query_set = Document.objects.filter(username=username)
+        if len(query_set) > 0:
+            return render(request, 'upload_app/already_upload.html')
+
+        # Redirect if not match
+        print 'check if username matches', str(username) != str(input_username)
+        if str(username) != str(input_username):
+            return render(request, 'upload_app/fail_upload.html')
+
+        form = DocumentForm(request.POST, request.FILES, username)
+
+        print 'check if form is valid', form.is_valid()
+
+        if form.is_valid():
+            form.save()
+            uploaded_file = request.FILES['document']
+            filename = request.FILES['document'].name
+            suffix = str(filename).split('.')[-1]
+            if not suffix in ['jpg', 'jpeg', 'png']:
+                return HttpResponse("file format not supported")
+            print 'suffix for current file is:', suffix
+
+            path = str(os.getcwd()) + '/media/iris/user_' + str(username) + '/'
+            img = cv2.imread(path + str(filename))
+            flat = pre_process(img)
+            cv2.imwrite(path + 'flat_' + filename, flat)
+
+            return render(request, 'upload_app/success_upload.html')
+            # return HttpResponseRedirect(request, 'index')
     else:
         form = DocumentForm()
     return render(request, 'upload_app/uploadPage.html', {'form':form})
 
 
 def register(request):
+
+    if request.user.is_authenticated():
+        return render(request, 'upload_app/logged_in_page.html')
 
     registered = False
 
@@ -146,7 +247,7 @@ def pre_process(image, width=360, height=60):
     
     # Use Hough transform to detect circle
     ret, th3 = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-    circle_in = cv2.HoughCircles(image=gray,method=cv2.cv.CV_HOUGH_GRADIENT,dp=1,
+    circle_in = cv2.HoughCircles(image=gray,method=cv2.HOUGH_GRADIENT,dp=1,
                             minDist=50,param1=ret,param2=30,minRadius=1,maxRadius=200)[0][0]
     circle_out = circle_in.copy()
     circle_out[2] = 120
@@ -176,7 +277,7 @@ def pre_process(image, width=360, height=60):
             Xc = (1 - r_pro) * Xi + r_pro * Xo
             Yc = (1 - r_pro) * Yi + r_pro * Yo
 
-            color = img[int(Xc)][int(Yc)] # color of the pixel
+            color = image[int(Xc)][int(Yc)] # color of the pixel
 
             flat[j][i] = color # fill color
         

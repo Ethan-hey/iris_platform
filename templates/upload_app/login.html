@@ -2,20 +2,22 @@
 {% block body_block %}
   <div class="container">
     <div class="jumbotron">
-      <h1>Please Login</h1>
+      <h2>Please Login</h2>
 
-        <form method="post" action="{% url 'upload_app:user_login' %}">
+        <form method="post" class="form-contact" action="{% url 'upload_app:user_login' %}">
           {% csrf_token %}
           {# A more "HTML" way of creating the login form#}
           <div class="input-group">
             <label for="username">Username:</label>
             <input type="text" class="form-control" placeholder="Username" name="username" aria-describedby="basic-addon1">
           </div>
+          <br>
   
           <div class="input-group">
             <label for="password">Password:</label>
             <input type="password" class="form-control" placeholder="Password" name="password" aria-describedby="basic-addon1">
           </div>
+          <br>
 
           <div class="input-group">
             <input type="submit" name="" value="Login" class="btn btn-default">

@@ -16,9 +16,12 @@ Including another URLconf
 from django.conf.urls import url, include
 from django.contrib import admin
 from upload_app import views
+from django.conf import settings
+from django.conf.urls.static import static
 
 urlpatterns = [
     url(r'^admin/', admin.site.urls),
     url(r'^$', views.index, name='index'), 
     url(r'^upload_app/', include('upload_app.urls')),
-]
+    url(r'^iris_gallery', views.iris_gallery, name='iris_gallery')
+] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

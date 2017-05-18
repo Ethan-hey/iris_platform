@@ -1,0 +1,20 @@
+{% extends "upload_app/base.html" %}
+
+{% block body_block %}
+
+
+    <div class="jumbotron">
+        <h2 align="center">You are now in gallery</h2>
+        <br>
+        
+        {% if not iris_ori %}
+          <h2 align="center">You havn't uploaded Iris Image</h2>
+        {% else %}
+          <img src="{{ iris_ori }}" width="40%">
+          <img src="{{ iris_flat }}" width="40%" align="right">
+        {% endif %}
+
+
+    </div>
+
+{% endblock %}
