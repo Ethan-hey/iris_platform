@@ -1,0 +1,26 @@
+{% extends "upload_app/base.html" %}
+
+{% block body_block %}
+
+
+    <div class="jumbotron">
+        <h1 align="center">Face Gallery</h1>
+        <br>
+
+        {% if not face_ori %}
+          <h2 align="center">You havn't uploaded Face Image</h2>
+        {% else %}
+       	  <div align="center" class="panel-defaul">
+            <div class="panel_heading">
+       	      <p>Face image you've uploaded:</p>
+            </div>
+            <div class="panel-body">
+              <img src="{{ face_ori }}" width="40%">
+            </div>
+          </div>
+        {% endif %}
+
+
+    </div>
+
+{% endblock %}

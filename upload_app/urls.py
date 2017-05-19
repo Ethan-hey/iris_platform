@@ -14,7 +14,8 @@ urlpatterns = [
 	url(r'^logout/', views.user_logout, name='user_logout'),
 	url(r'^special/', views.special, name='special'),
 	url(r'^upload/', views.upload, name='upload'), 
-	url(r'^Iris Gallery/', views.iris_gallery, name='iris_gallery'), 
+	url(r'^iris gallery/', views.iris_gallery, name='iris_gallery'), 
 	url(r'^upload_face/', views.upload_face, name='upload_face'), 
+	url(r'^face_gallery/', views.face_gallery, name='face_gallery'), 
     # url(r'^admin/', admin.site.urls),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

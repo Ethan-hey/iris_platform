@@ -4,6 +4,10 @@ from django.shortcuts import render
 from upload_app.forms import UserForm, DocumentForm, DocumentFaceForm
 
 from upload_app.models import Document, Document_face
+from scipy.linalg import norm
+from scipy import sum, average
+from os import path
+from glob import glob 
 import cv2
 import numpy as np
 import uuid, os
@@ -59,6 +63,35 @@ def iris_gallery(request):
     return render(request, 'upload_app/iris_gallery.html',
                  {'iris_ori':iris_ori, 'iris_flat':iris_flat})
 
+def face_gallery(request):
+
+    # return HttpResponse("face_gallery")
+
+    if not request.user.is_authenticated():
+        return render(request, 'upload_app/require_login.html')
+
+    username = str(request.user)
+    print 'username trying to query here is:', str(username)
+    print len(Document_face.objects.filter(username=str(username)))
+
+    filename = Document_face.objects.get(username=str(request.user)).document.name
+
+    try:
+        filename = Document_face.objects.get(username=str(request.user)).document.name
+        print 'filename = Document_face.objects.get(username=str(request.user)).document.name'
+        filename = str(filename).split('/')[-1]
+        print "filename = str(filename).split('/')[-1]"
+
+        path = '/media/iris/user_' + username + "/"
+        print "path = '/media/iris/user_' + use"
+        face_ori = path + filename
+        print 'face_ori = path + filename'
+    except:
+        face_ori = None
+
+    return render(request, 'upload_app/face_gallery.html',
+                 {'face_ori':face_ori})
+
 def upload_face(request):
     if not request.user.is_authenticated():
         return render(request, 'upload_app/require_login.html')
@@ -67,7 +100,7 @@ def upload_face(request):
     username = request.user
 
     # Redirect if already uploaded
-    query_set = DocumentFaceForm.objects.filter(username=username)
+    query_set = Document_face.objects.filter(username=username)
     if len(query_set) > 0:
         return render(request, 'upload_app/already_upload.html')
 
@@ -77,7 +110,7 @@ def upload_face(request):
         input_username = request.POST['username']
 
         # Redirect if already uploaded
-        query_set = Document.objects.filter(username=username)
+        query_set = Document_face.objects.filter(username=username)
         if len(query_set) > 0:
             return render(request, 'upload_app/already_upload.html')
 
@@ -282,3 +315,72 @@ def pre_process(image, width=360, height=60):
             flat[j][i] = color # fill color
         
     return flat
+
+
+def compare_images(img1, img2, verbose=False):
+    
+    # convert image to gray scale
+    img1 = cv2.cvtColor(img1,cv2.COLOR_BGR2GRAY)
+    img2 = cv2.cvtColor(img2,cv2.COLOR_BGR2GRAY)
+    
+    # crop images to required size
+    img1 = crop_resize(img1)
+    img2 = crop_resize(img2)
+    
+    # normalize images
+    img1 = normalize(img1)
+    img2 = normalize(img2)
+    
+    # calculate the difference and its norms
+    diff = img1 - img2  # elementwise for scipy arrays
+    m_norm = sum(abs(diff))  # Manhattan norm
+    z_norm = norm(diff.ravel(), 0)  # Zero norm
+    if verbose:
+        print "Manhattan norm per pixel:", m_norm/img1.size
+    
+    return (m_norm/img1.size)
+
+    def normalize(arr):
+        rng = arr.max()-arr.min()
+        amin = arr.min()
+        return (arr-amin)*255/rng
+
+    def crop_resize(img, height=480, width=640):
+    
+        imgH = img.shape[0]
+        imgW = img.shape[1]
+        
+        ratio = height / width
+        img_ratio = imgH / imgW
+        
+        # adjust height to width ratio to required size
+        if img_ratio > ratio:
+            c_img = img[0:int(ratio * imgW), 0:imgW]
+        elif img_ratio < ratio:
+            c_img = img[0:imgH, 0:(imgH / ratio)]
+        else:
+            c_img = img[0:imgH, 0:imgW]
+         
+        c_img = cv2.resize(c_img, (height, width)) # adjust resolution
+        return c_img
+
+    # read ten iris images as sample images
+    def get_samples(dr="sample_images/", ext="jpg"):
+        images = glob(path.join(dr,"*.{}".format(ext)))
+        for i in range(len(images)):
+            img = images[i]
+            img = cv2.imread(img)
+            images[i] = img
+        return images
+
+    # check if uploaded image similar to sample iris images
+    def judge_similarity(img, threshold = 0.18, verbose=False):
+        samples = get_samples()
+        dists =  []
+        for sam in samples:
+            dists.append(compare_images(sam, img))
+        distance = average(dists)
+        if verbose:
+            print 'Threshold value is:', threshold
+            print 'Distance between image and sample images is:', distance
+        return distance <= threshold
