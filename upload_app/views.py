@@ -92,44 +92,47 @@ def face_gallery(request):
     return render(request, 'upload_app/face_gallery.html',
                  {'face_ori':face_ori})
 
+
 def upload_face(request):
     if not request.user.is_authenticated():
         return render(request, 'upload_app/require_login.html')
 
-    # Get current user's username
+    # Get loggedin user's username
     username = request.user
 
     # Redirect if already uploaded
     query_set = Document_face.objects.filter(username=username)
     if len(query_set) > 0:
-        return render(request, 'upload_app/already_upload.html')
+        error_message = "You've already uploaded. Maximum image number allowed: one"
+        return render(request, 'upload_app/fail_upload.html', {'error_message':error_message})
 
     if request.method == 'POST':
 
         # Check if inputed username matches logged username
         input_username = request.POST['username']
 
-        # Redirect if already uploaded
-        query_set = Document_face.objects.filter(username=username)
-        if len(query_set) > 0:
-            return render(request, 'upload_app/already_upload.html')
-
         # Redirect if not match
-        print 'check if username matches', str(username) != str(input_username)
+        print 'check if username matches', str(username) == str(input_username)
         if str(username) != str(input_username):
-            return render(request, 'upload_app/fail_upload.html')
+            error_message='Username mismatch'
+            return render(request, 'upload_app/fail_upload.html', {'error_message':error_message})
 
         form = DocumentFaceForm(request.POST, request.FILES, username)
 
         print 'check if form is valid', form.is_valid()
 
         if form.is_valid():
-            form.save()
+
+            form.save() # save uploaded info to database
+
             uploaded_file = request.FILES['document']
             filename = request.FILES['document'].name
-            suffix = str(filename).split('.')[-1]
+
+            # check file suffix
+            suffix = str(filename).split('.')[-1] 
             if not suffix in ['jpg', 'jpeg', 'png']:
-                return HttpResponse("file format not supported")
+                error_message = 'File format not supported'
+                return render(request, 'upload_app/fail_upload.html', {'error_message':error_message})
             print 'suffix for current file is:', suffix
 
             return render(request, 'upload_app/success_upload.html')
@@ -146,7 +149,7 @@ def upload(request):
         return render(request, 'upload_app/require_login.html')
 
     # Get current user's username
-    username = request.user
+    username = str(request.user)
 
     # Redirect if already uploaded
     query_set = Document.objects.filter(username=username)
@@ -161,12 +164,14 @@ def upload(request):
         # Redirect if already uploaded
         query_set = Document.objects.filter(username=username)
         if len(query_set) > 0:
-            return render(request, 'upload_app/already_upload.html')
+            error_message = "You've already uploaded. Maximum image number allowed: one"
+            return render(request, 'upload_app/fail_upload.html', {'error_message':error_message})
 
         # Redirect if not match
-        print 'check if username matches', str(username) != str(input_username)
+        print 'check if username matches', str(username) == str(input_username)
         if str(username) != str(input_username):
-            return render(request, 'upload_app/fail_upload.html')
+            error_message = 'Username mismatchs. Please check your username and upload again.'
+            return render(request, 'upload_app/fail_upload.html', {'error_message':error_message})
 
         form = DocumentForm(request.POST, request.FILES, username)
 
@@ -174,15 +179,24 @@ def upload(request):
 
         if form.is_valid():
             form.save()
+
+            doc_obj = Document.objects.get(username=username)
+
             uploaded_file = request.FILES['document']
             filename = request.FILES['document'].name
             suffix = str(filename).split('.')[-1]
             if not suffix in ['jpg', 'jpeg', 'png']:
-                return HttpResponse("file format not supported")
-            print 'suffix for current file is:', suffix
+                doc_obj.delete()
+                error_message = 'File format not supported.'
+                return render(request, 'upload_app/fail_upload.html', {'error_message':error_message})
+            # print 'suffix for current file is:', suffix
 
             path = str(os.getcwd()) + '/media/iris/user_' + str(username) + '/'
             img = cv2.imread(path + str(filename))
+            if not judge_similarity(img, verbose=True):
+                doc_obj.delete()
+                error_message = "Your image doesn't look like an iris image"
+                return render(request, 'upload_app/fail_upload.html', {'error_message':error_message})
             flat = pre_process(img)
             cv2.imwrite(path + 'flat_' + filename, flat)
 
@@ -317,19 +331,50 @@ def pre_process(image, width=360, height=60):
     return flat
 
 
+def normalize(arr):
+    rng = arr.max()-arr.min()
+    amin = arr.min()
+    return (arr-amin)*255/rng
+
+def crop_resize(img, height=480, width=640):
+    
+    imgH = img.shape[0]
+    imgW = img.shape[1]
+        
+    ratio = height / width
+    img_ratio = imgH / imgW
+        
+    # adjust height to width ratio to required size
+    if img_ratio > ratio:
+        c_img = img[0:int(ratio * imgW), 0:imgW]
+    elif img_ratio < ratio:
+        c_img = img[0:imgH, 0:int(imgH / ratio)]
+    else:
+        c_img = img[0:imgH, 0:imgW]
+         
+    c_img = cv2.resize(c_img, (height, width)) # adjust resolution
+    return c_img
+
+
 def compare_images(img1, img2, verbose=False):
     
     # convert image to gray scale
     img1 = cv2.cvtColor(img1,cv2.COLOR_BGR2GRAY)
     img2 = cv2.cvtColor(img2,cv2.COLOR_BGR2GRAY)
+    print 'type of images after gray', type(img1), type(img2)
+    print img1.shape, img2.shape
     
     # crop images to required size
     img1 = crop_resize(img1)
     img2 = crop_resize(img2)
+    print 'type of images after crop and resize:', type(img1), type(img2)
+    print img1.shape, img2.shape
     
     # normalize images
     img1 = normalize(img1)
     img2 = normalize(img2)
+    print 'type of images after normalzie:', type(img1), type(img2)
+    print img1.shape, img2.shape
     
     # calculate the difference and its norms
     diff = img1 - img2  # elementwise for scipy arrays
@@ -340,47 +385,32 @@ def compare_images(img1, img2, verbose=False):
     
     return (m_norm/img1.size)
 
-    def normalize(arr):
-        rng = arr.max()-arr.min()
-        amin = arr.min()
-        return (arr-amin)*255/rng
 
-    def crop_resize(img, height=480, width=640):
-    
-        imgH = img.shape[0]
-        imgW = img.shape[1]
-        
-        ratio = height / width
-        img_ratio = imgH / imgW
-        
-        # adjust height to width ratio to required size
-        if img_ratio > ratio:
-            c_img = img[0:int(ratio * imgW), 0:imgW]
-        elif img_ratio < ratio:
-            c_img = img[0:imgH, 0:(imgH / ratio)]
-        else:
-            c_img = img[0:imgH, 0:imgW]
-         
-        c_img = cv2.resize(c_img, (height, width)) # adjust resolution
-        return c_img
 
-    # read ten iris images as sample images
-    def get_samples(dr="sample_images/", ext="jpg"):
-        images = glob(path.join(dr,"*.{}".format(ext)))
-        for i in range(len(images)):
-            img = images[i]
-            img = cv2.imread(img)
-            images[i] = img
-        return images
+# read ten iris images as sample images
+def get_samples(dr="scripts/sample_images/", ext="jpg"):
+    print '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!'
+    print os.getcwd()
+    print path.join(dr,"*.{}".format(ext))
+    images = glob(path.join(dr,"*.{}".format(ext)))
+    for i in range(len(images)):
+        img = images[i]
+        img = cv2.imread(img)
+        images[i] = img
+    return images
 
-    # check if uploaded image similar to sample iris images
-    def judge_similarity(img, threshold = 0.18, verbose=False):
-        samples = get_samples()
-        dists =  []
-        for sam in samples:
-            dists.append(compare_images(sam, img))
-        distance = average(dists)
-        if verbose:
-            print 'Threshold value is:', threshold
-            print 'Distance between image and sample images is:', distance
-        return distance <= threshold
+# check if uploaded image similar to sample iris images
+def judge_similarity(img, threshold = 0.18, verbose=False):
+    samples = get_samples()
+    dists =  []
+    print 'type of uploaded image is:', type(img)
+    print img.shape
+    for sam in samples:
+        print type(sam), sam.shape
+        compare_images(sam, img, verbose=True)
+        dists.append(compare_images(sam, img))
+    distance = average(dists)
+    if verbose:
+        print 'Threshold value is:', threshold
+        print 'Distance between image and sample images is:', distance
+    return distance <= threshold
